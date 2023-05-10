@@ -3,9 +3,11 @@ syntax = "proto3";
 package pb;
 
 import "rpc_sign_up.proto"; 
+import "rpc_login.proto";
 
 option go_package = "github.com/ShadrackAdwera/go-gRPC/pb";
 
 service Auth {
     rpc SignUp (SignUpRequest) returns (SignUpResponse) {}
+    rpc Login (LoginRequest) returns (LoginResponse) {}
 }
