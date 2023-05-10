@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package pb;
 
+import "google/protobuf/timestamp.proto";
 import "user.proto"; 
 
 option go_package = "github.com/ShadrackAdwera/go-gRPC/pb";
@@ -13,4 +14,9 @@ message LoginRequest {
 
 message LoginResponse {
     User user = 1;
+    string session_id = 2;
+    string access_token = 3;
+    string refresh_token = 4;
+    google.protobuf.Timestamp access_token_expiration_time = 5; 
+    google.protobuf.Timestamp refresh_token_expiration_time = 6; 
 }
