@@ -11,11 +11,17 @@ sqlc:
 tests:
 	go test -v -cover ./...
 start:
-	go run main.go
+	go run main.
+mocks:
+	mockgen -package mockdb --destination db/mocks/store.go github.com/ShadrackAdwera/go-gRPC/db/sqlc TxStore
 proto:
 	rm -rf pb/*.go
 	protoc --proto_path=proto --go_out=pb --go_opt=paths=source_relative \
     --go-grpc_out=pb --go-grpc_opt=paths=source_relative \
     proto/*.proto
+evans:
+	evans --host localhost --port 5000 -r repl
+pg_exec_it:
+	docker container exec -it postgres psql -U postgres
 
-.PHONY: create_db migrate_create migrate_up migrate_down sqlc tests mocks start postgres redis proto
+.PHONY: migrate_create migrate_up migrate_down sqlc tests start proto evans
