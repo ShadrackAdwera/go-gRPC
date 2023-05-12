@@ -1,7 +1,9 @@
 package gapi
 
 import (
+	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,6 +14,35 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+type eqCreateUserParamsMatcher struct {
+	arg      db.CreateUserParams
+	password string
+	user     db.User
+}
+
+func (expected eqCreateUserParamsMatcher) Matches(x interface{}) bool {
+	actualArg, ok := x.(db.CreateUserParams)
+	if !ok {
+		return false
+	}
+
+	err := utils.IsPassword(expected.password, actualArg.Password)
+	if err != nil {
+		return false
+	}
+
+	expected.arg.Password = actualArg.Password
+	return reflect.DeepEqual(expected.arg, actualArg)
+}
+
+func (e eqCreateUserParamsMatcher) String() string {
+	return fmt.Sprintf("matches arg %v and password %v", e.arg, e.password)
+}
+
+func EqCreateUserParams(arg db.CreateUserParams, password string, user db.User) gomock.Matcher {
+	return eqCreateUserParamsMatcher{arg, password, user}
+}
 
 func createTestUser() (db.User, string) {
 	username := utils.RandomString(12)
@@ -44,11 +75,12 @@ func TestSignUp(t *testing.T) {
 				Password: password,
 			},
 			buildStubs: func(store *mockdb.MockTxStore) {
-				store.EXPECT().CreateUser(gomock.Any(), gomock.Eq(db.CreateUserParams{
+				args := db.CreateUserParams{
 					Username: user.Username,
 					Email:    user.Email,
 					Password: password,
-				})).Times(1).Return(gomock.Any(), nil)
+				}
+				store.EXPECT().CreateUser(gomock.Any(), EqCreateUserParams(args, password, user)).Times(1).Return(user, nil)
 			},
 			comparator: func(t *testing.T, res *pb.SignUpResponse, err error) {
 				require.NoError(t, err)
@@ -70,6 +102,9 @@ func TestSignUp(t *testing.T) {
 
 			testCase.buildStubs(store)
 
+			srv := newTestServer(t, store)
+			res, err := srv.SignUp(context.Background(), testCase.body)
+			testCase.comparator(t, res, err)
 		})
 	}
 }
