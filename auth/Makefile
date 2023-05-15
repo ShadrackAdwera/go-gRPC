@@ -14,6 +14,7 @@ start:
 	go run main.
 mocks:
 	mockgen -package mockdb --destination db/mocks/store.go github.com/ShadrackAdwera/go-gRPC/db/sqlc TxStore
+	mockgen -package mockworkers --destination workers/mocks/distributor.go github.com/ShadrackAdwera/go-gRPC/workers Distributor
 proto:
 	rm -rf pb/*.go
 	protoc --proto_path=proto --go_out=pb --go_opt=paths=source_relative \
