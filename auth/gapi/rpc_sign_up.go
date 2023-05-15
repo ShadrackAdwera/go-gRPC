@@ -2,9 +2,12 @@ package gapi
 
 import (
 	"context"
+	"time"
 
 	db "github.com/ShadrackAdwera/go-gRPC/db/sqlc"
 	"github.com/ShadrackAdwera/go-gRPC/pb"
+	"github.com/ShadrackAdwera/go-gRPC/workers"
+	"github.com/hibiken/asynq"
 	"github.com/lib/pq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,19 +24,25 @@ func (srv *Server) SignUp(ctx context.Context, req *pb.SignUpRequest) (*pb.SignU
 		return nil, status.Errorf(codes.Internal, "error hashing password: %s", err)
 	}
 
-	// check if user exists
-	// _, err = srv.store.FindUserByEmail(ctx, req.GetEmail())
-
-	// if err != nil {
-	// 	if err != sql.ErrNoRows {
-	// 		return nil, status.Errorf(codes.Internal, "error occured looking up the email")
-	// 	}
-	// }
-
-	user, err := srv.store.CreateUser(ctx, db.CreateUserParams{
-		Username: req.GetUsername(),
-		Email:    req.GetEmail(),
-		Password: hashedPw,
+	response, err := srv.store.CreateUserTx(ctx, db.CreateUserTxInput{
+		CreateUserParams: db.CreateUserParams{
+			Username: req.GetUsername(),
+			Email:    req.GetEmail(),
+			Password: hashedPw,
+		},
+		EmitCreateUser: func(user db.User) error {
+			opts := []asynq.Option{
+				asynq.MaxRetry(10),
+				asynq.ProcessIn(10 * time.Second),
+				asynq.Queue(workers.QueueCritical),
+			}
+			payload := workers.UserPayload{
+				ID:       user.ID,
+				Username: user.Username,
+				Email:    user.Email,
+			}
+			return srv.distro.DistributeUser(ctx, payload, opts...)
+		},
 	})
 
 	if err != nil {
@@ -46,10 +55,8 @@ func (srv *Server) SignUp(ctx context.Context, req *pb.SignUpRequest) (*pb.SignU
 		return nil, status.Errorf(codes.Internal, "error creating user %s", err)
 	}
 
-	// send verification email --
-
 	return &pb.SignUpResponse{
-		User: getUserResponse(user),
+		User: getUserResponse(response.User),
 	}, nil
 }
 
