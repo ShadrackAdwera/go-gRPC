@@ -10,6 +10,8 @@ import (
 	"github.com/ShadrackAdwera/go-gRPC/gapi"
 	"github.com/ShadrackAdwera/go-gRPC/pb"
 	"github.com/ShadrackAdwera/go-gRPC/token"
+	"github.com/ShadrackAdwera/go-gRPC/workers"
+	"github.com/hibiken/asynq"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
@@ -21,6 +23,12 @@ func main() {
 		log.Fatalf("Failed to load the env vars: %v", err)
 	}
 	url := os.Getenv("PG_URL")
+	redisAddr := os.Getenv("REDIS_ADDRESS")
+
+	if redisAddr == "" {
+		panic("provide the redis address config")
+	}
+
 	conn, err := sql.Open("postgres", url)
 
 	if err != nil {
@@ -36,7 +44,13 @@ func main() {
 
 	store := db.NewStore(conn)
 
-	server := gapi.NewServer(maker, store)
+	redisOpts := &asynq.RedisClientOpt{
+		Addr: redisAddr,
+	}
+
+	distro := workers.NewDistributor(redisOpts)
+
+	server := gapi.NewServer(maker, store, distro)
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterAuthServer(grpcServer, server)
